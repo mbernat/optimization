@@ -5,8 +5,8 @@
 {-# LANGUAGE TypeFamilies #-}
 module RandomSearch
     ( RandomSearch(..)
-    , RandomSearchState(..)
-    , RandomSearchError(..)
+    , State(..)
+    , Error(..)
     ) where
 
 import Control.Monad
@@ -14,23 +14,23 @@ import Data.RVar
 
 import BookKeeping
 import Problem
-import Strategy
+import Strategy (Strategy)
+import qualified Strategy
 
 
 data RandomSearch (g :: * -> *) = RandomSearch
     { samples :: Int
     }
 
-data RandomSearchState f g a b = RandomSearchState
+data State f g a b = State
     { bestParams :: f a
     , bestValues :: g b
     }
 
 deriving instance (Show (f a), Show (g b))
-    => Show (RandomSearchState f g a b)
+    => Show (State f g a b)
 
-data RandomSearchError (f :: * -> *) (g :: * -> *) a b
-    = RandomSearchError
+data Error (f :: * -> *) (g :: * -> *) a b = Error
   deriving (Show)
 
 
@@ -48,19 +48,18 @@ simpleSample RandomSearch{..} Problem{..} = do
     pure (x, fx)
 
 instance BookKeeping g => Strategy (RandomSearch g) where
-    type State (RandomSearch g) f a b = RandomSearchState f g a b
-    type Error (RandomSearch g) f a b = RandomSearchError f g a b
+    type State (RandomSearch g) f a b = State f g a b
+    type Error (RandomSearch g) f a b = Error f g a b
     
     initialState rs p
-        = uncurry RandomSearchState <$> simpleSample rs p
+        = uncurry State <$> simpleSample rs p
         
-    step rs@RandomSearch{..} p best@RandomSearchState{..}
+    step rs@RandomSearch{..} p best@State{..}
         = fmap Right $ do
             (y, fy) <- simpleSample rs p
-            if summarize bestValues <=
-               summarize fy
-              then pure best
-              else pure $ RandomSearchState y fy
+            if summarize bestValues <= summarize fy
+                then pure best
+                else pure $ State y fy
 
 
 
