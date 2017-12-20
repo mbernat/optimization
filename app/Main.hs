@@ -1,6 +1,6 @@
 module Main where
 
-import Lib
+import Test
 
 main :: IO ()
-main = print "hi"
+main = drive >>= print
