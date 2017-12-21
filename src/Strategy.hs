@@ -1,4 +1,5 @@
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 module Strategy
@@ -13,7 +14,7 @@ import Problem
 
 type Result s f a b = Either (Error s f a b) (State s f a b)
 
-class Strategy s where
+class Strategy s f a b where
     type State s (f :: * -> *) a b = r | r -> s f a b
     type Error s (f :: * -> *) a b = r | r -> s f a b
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 module Cmaes where
@@ -17,50 +18,55 @@ data Cmaes = Cmaes
     { numSamples :: Int
     }
 
-data State (f :: * -> *) a b = State
+data State = State
     { mean :: Vector Double
     , sigma :: Double
     , cov :: Matrix Double
     , pathSigma :: Vector Double
     , pathC :: Vector Double
     }
+  deriving (Show)
 
-data Error (f :: * -> *) a b = Error
+data Error = Error
+  deriving (Show)
 
 -- TODO implement multivariate normal distribution
 normal :: Vector Double -> Matrix Double -> RVar (Vector Double)
 normal mean _cov = pure mean
 
-instance Strategy Cmaes where
-    type State Cmaes f a b = State f a b
-    type Error Cmaes f a b = Error f a b
+instance Strategy Cmaes Vector Double Double where
+    type State Cmaes Vector Double Double = State
+    type Error Cmaes Vector Double Double = Error
 
     -- TODO what's a good way to initialize mean and sigma?
-    initialState _s _p
-        = pure $ State
-            { mean = zero
+    initialState _s p = do
+        initial <- sampleRVar $ region p
+        let zero = cmap (const 0) initial
+        pure $ State
+            { mean = initial
             , sigma = 1
             , cov = ident (size zero)
             , pathSigma = zero
             , pathC = zero
             }
-          where
-            zero = 0
+
 
     step Cmaes{..} Problem{..} State{..} = do
         samples <- replicateM numSamples $ do
             x <- sampleRVar $ normal mean (scale (sigma*sigma) cov)
-            -- XXX we need to produce (f a) from Vector Double ... looks like the interface is way too generic...
-            x' <- sampleRVar region
-            y <- sampleRVar $ objective x'
+            y <- sampleRVar $ objective x
             pure (x, y)
-        -- TODO handle the case sigma == 0 by producing an error
         let sorted = fmap fst $ sortBy (comparing snd) samples
+
         let mean' = updateMean mean sorted
-        let pathSigma' = updatePathSigma pathSigma (scale (1/sigma) $ (sqrtm (inv cov)) #> (mean' - mean))
-        let pathC' = updatePathC pathC (scale (1/sigma) (mean' - mean)) (norm_2 pathSigma)
-        let cov' = updateCov cov pathC (fmap (\x -> scale (1/sigma) (x - mean')) sorted)
-        let sigma' = updateSigma sigma (norm_2 pathSigma)
+        let meanDiff = mean' - mean
+        let compDiff x = scale (1/sigma) (x - mean')
+
+        let normPathSigma = norm_2 pathSigma
+        let pathSigma' = updatePathSigma pathSigma (scale (1/sigma) $ (sqrtm (inv cov)) #> meanDiff)
+        let pathC' = updatePathC pathC (scale (1/sigma) meanDiff) normPathSigma
+        let cov' = updateCov cov pathC (fmap compDiff sorted)
+        let sigma' = updateSigma sigma normPathSigma
         pure . Right $ State
             { mean = mean'
             , sigma = sigma'

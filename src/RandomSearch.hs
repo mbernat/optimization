@@ -1,5 +1,7 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -47,7 +49,7 @@ simpleSample RandomSearch{..} Problem{..} = do
         $ objective x
     pure (x, fx)
 
-instance BookKeeping g => Strategy (RandomSearch g) where
+instance BookKeeping g => Strategy (RandomSearch g) f a b where
     type State (RandomSearch g) f a b = State f g a b
     type Error (RandomSearch g) f a b = Error f g a b
     

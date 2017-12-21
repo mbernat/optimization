@@ -9,7 +9,7 @@ import Strategy
 
 testDrive
     :: forall m s f a b.
-    (MonadRandom m, RealFloat b, Strategy s)
+    (MonadRandom m, RealFloat b, Strategy s f a b)
     => Int
     -> s
     -> Problem f a b
