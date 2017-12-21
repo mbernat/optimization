@@ -1,3 +1,9 @@
+{-
+
+This is a simple CMA-ES strategy as described at
+https://en.wikipedia.org/wiki/CMA-ES.
+
+-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -15,7 +21,31 @@ import qualified Strategy
 
 
 data Cmaes = Cmaes
-    { numSamples :: Int
+    { lambda :: Int
+      -- ^ Number of solutions to sample
+    , weights :: [Double]
+      -- ^ The recombination weights should:
+      --  be decreasing
+      --  sum to one
+      --  have length <= lambda/2
+      --  their muW = inverted sum of squares of weights ~ lambda/4
+    , csigma :: Double
+      -- ^ The backward time horizon for the evolution pathSigma.
+      -- Should be ~ 3/n and larger than 1.
+    , dsigma :: Double
+      -- ^ The damping parameter, usually close to one.
+    , cc :: Double
+      -- ^ The backward time horizon for the evolution pathC.
+      -- Should be ~ 4/n and larger than 1.
+    , alpha :: Double
+      -- ^ The cut-off for pathSigma norm. Should be ~ 1.5.
+    , c1 :: Double
+      -- ^ The learning rate for the rank-one update of the covariance
+      -- matrix. Should be ~ 2/(n^2)
+    , cmu :: Double
+      -- ^ The learning rate for the rank-mu update of the covariance
+      -- matrix and must not exceed 1 - c1.
+      -- Should be ~ muW/n^2.
     }
 
 data State = State
@@ -29,6 +59,8 @@ data State = State
 
 data Error = Error
   deriving (Show)
+
+square x = x*x
 
 -- TODO implement multivariate normal distribution
 normal :: Vector Double -> Matrix Double -> RVar (Vector Double)
@@ -52,21 +84,26 @@ instance Strategy Cmaes Vector Double Double where
 
 
     step Cmaes{..} Problem{..} State{..} = do
-        samples <- replicateM numSamples $ do
+        samples <- replicateM lambda $ do
             x <- sampleRVar $ normal mean (scale (sigma*sigma) cov)
+            -- Is this meaningful for stochastic functions?
             y <- sampleRVar $ objective x
             pure (x, y)
-        let sorted = fmap fst $ sortBy (comparing snd) samples
+        let n = size $ head samples
+        let ordered = fmap fst $ sortBy (comparing snd) samples
 
-        let mean' = updateMean mean sorted
-        let meanDiff = mean' - mean
-        let compDiff x = scale (1/sigma) (x - mean')
+        let displace x = scale (1/sigma) (x - mean)
+        let mean' = updateMean ordered
+        let muW = (1 /) . sum $ map square weights
 
         let normPathSigma = norm_2 pathSigma
-        let pathSigma' = updatePathSigma pathSigma (scale (1/sigma) $ (sqrtm (inv cov)) #> meanDiff)
-        let pathC' = updatePathC pathC (scale (1/sigma) meanDiff) normPathSigma
-        let cov' = updateCov cov pathC (fmap compDiff sorted)
-        let sigma' = updateSigma sigma normPathSigma
+        let muDisp = scale (sqrt muW) (displace mean')
+        let muDispNorm = sqrtm (inv cov) #> muDisp
+        let pathSigma' = updatePathSigma n pathSigma muDispNorm
+        let pathC' = updatePathC pathC muDisp normPathSigma
+        let cov' = updateCov cov pathC (fmap displace ordered)
+        let sigma' = updateSigma n sigma normPathSigma
+
         pure . Right $ State
             { mean = mean'
             , sigma = sigma'
@@ -75,8 +112,23 @@ instance Strategy Cmaes Vector Double Double where
             , pathC = pathC'
             }
       where
-        updateMean mean' _samples' = mean'
-        updatePathSigma pathSigma' _diff = pathSigma'
-        updatePathC pathC' _diff _npsigma = pathC'
+        updateMean samples'
+           = sum $ zipWith scale weights samples'
+
+        updatePathSigma n pathSigma' muDispNorm
+           = scale (1 - csigma) pathSigma' + scale discVarComp muDisp
+          where
+            discVarComp = sqrt $ 1 - square (1 - csigma)
+
+        updatePathC pathC' muDisp npsigma
+            = scale (1 - cc) pathC' + scale (ind * discVarComp) muDisp
+          where
+            discVarComp = sqrt $ 1 - square (1 - cc)
+
         updateCov cov' _pathC' _diffs = cov'
-        updateSigma sigma' _npsigma = sigma'
+
+        updateSigma n sigma' npsigma'
+            = sigma' * exp ((csigma / dsigma) * (npsigma' / expVal - 1))
+          where
+            -- E |N(0, ident)|
+            expVal = (sqrt n) * (1 - 1/(4*n) + (1/(21*n*n)))

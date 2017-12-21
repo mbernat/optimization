@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 module Test where
 
 import Data.Functor.Identity
@@ -19,9 +20,9 @@ problem = Problem
     }
 
 randomDrive :: IO (Result (RandomSearch Pair) Identity Double Double)
-randomDrive = testDrive iter (RandomSearch samples') problem
+randomDrive = testDrive iter RandomSearch{..} problem
   where
-    samples' = 10
+    samples = 10
     iter = 100
 
 problem2 :: Problem Vector Double Double
@@ -31,7 +32,8 @@ problem2 = Problem
     }
   
 cmaesDrive :: IO (Result Cmaes Vector Double Double)
-cmaesDrive = testDrive iter (Cmaes samples') problem2
+cmaesDrive = testDrive iter Cmaes{..} problem2
   where
-    samples' = 10
+    lambda = 10
+    weights = [0.4, 0.3, 0.2, 0.1]
     iter = 100
