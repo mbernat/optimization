@@ -10,9 +10,9 @@ also allowing for the presence of noise in the data.
 
 As much as possible all concepts should be captured with datatypes and
 only interpreted into code later. The fundamental topics are that of a
-problem to be optimized and a of strategies used to
+problem to be optimized and a of strategies used to solve it.
 
-### The optimzation problem
+### The optimization problem
 
 In general an optimization problem is specified by the following data.
 
@@ -73,8 +73,8 @@ In contrast the following classes are exclusive.
 For example, a strategy that treats a continuous problem is not
 expected to know what to do with a discrete variant and vice
 versa. There are ways of transforming some of these classes into the
-other, and these might eventually supported. However, currently the
-main focus of this library is to only treat *unconstrained*
+others, and these might eventually be supported. However, currently
+the main focus of this library is to only treat *unconstrained*
 *continuous* *sampling* problems.
 
 ## The interface
@@ -83,11 +83,12 @@ The users of this library should be given maximum control both when
 specifying their problem and the strategy hyperparameters and when
 driving the strategy towards the solution.
 
-Since the problems are stochastic in general, it seems like a
-streaming API (such as Pipes) would be a good fit. Thus a strategy,
-once initialized with a problem and a set of hyperparameters, should be
-a producer of states converging to optimal values.
+Since both the problems and the strategies are stochastic in general
+we need to handle effects, so it seems like a streaming API (such as
+Pipes) would be a good fit. Thus a strategy, once initialized with a
+problem and a set of hyperparameters, should be a producer of states
+converging to optimal values.
 
-(A note to self on terminology: strategy/method/solver/stepper are essentially
-just different facets of the same thing. Pick the best names for the
-types and functions.)
+(A note to self on terminology: strategy/method/solver/stepper are
+essentially just different facets of the same concept. Pick the best
+names for the relevant types and functions.)
